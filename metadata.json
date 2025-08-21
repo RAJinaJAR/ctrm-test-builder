@@ -1,0 +1,5 @@
+{
+  "name": "CTRM Hotspot-&-Input Test Builder",
+  "description": "An application to create interactive tests by defining hotspots and input fields on video frames. Users can upload MP4 videos, extract frames, annotate them, and export the test configuration as JSON. Test mode allows users to take the created tests and see their scores, including penalties for clicking outside designated hotspots.",
+  "requestFramePermissions": []
+}

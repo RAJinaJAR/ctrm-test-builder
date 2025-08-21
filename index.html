@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CTRM Hotspot-&-Input Test Builder</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom scrollbar for better aesthetics if needed */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+    .resize-handle {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background-color: rgba(253, 224, 71, 0.8); /* yellow-400 with opacity */
+      border: 1px solid rgba(202, 138, 4, 1); /* yellow-600 */
+      z-index: 30;
+    }
+    .resize-handle.nw { top: -5px; left: -5px; cursor: nwse-resize; }
+    .resize-handle.ne { top: -5px; right: -5px; cursor: nesw-resize; }
+    .resize-handle.sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+    .resize-handle.se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+    .resize-handle.n { top: -5px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+    .resize-handle.s { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+    .resize-handle.w { top: 50%; left: -5px; transform: translateY(-50%); cursor: ew-resize; }
+    .resize-handle.e { top: 50%; right: -5px; transform: translateY(-50%); cursor: ew-resize; }
+
+    @keyframes pulse-red-outline {
+      0%, 100% {
+        outline-color: rgba(239, 68, 68, 0.7); /* red-500 */
+        outline-offset: 2px;
+      }
+      50% {
+        outline-color: rgba(239, 68, 68, 0.3);
+        outline-offset: 4px;
+      }
+    }
+    .mistake-flash-animation {
+      animation: pulse-red-outline 0.7s ease-in-out;
+      outline-style: solid;
+      outline-width: 3px;
+    }
+
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "jszip": "https://esm.sh/jszip@3.10.1",
+    "file-saver": "https://esm.sh/file-saver@2.0.5"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-slate-100">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
