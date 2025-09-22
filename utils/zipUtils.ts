@@ -32,6 +32,35 @@ export const createTestPackage = async (frames: FrameAssetData[]): Promise<void>
   saveAs(zipBlob, 'test_package.zip');
 };
 
+/**
+ * Creates a ZIP package blob in memory, without triggering a download.
+ */
+export const createTestPackageBlob = async (frames: FrameAssetData[]): Promise<Blob> => {
+  const zip = new JSZip();
+  
+  const includedFrames = frames.filter(f => f.includeInTest);
+  const jsonData = convertFrameDataToJsonFormat(includedFrames);
+  
+  zip.file('test.json', JSON.stringify(jsonData, null, 2));
+
+  const imagePromises = includedFrames.map(async (frame, index) => {
+    // The JSON format uses 1-based padded index, so we match it here.
+    const frameNumber = String(index + 1).padStart(3, '0');
+    const imageName = `frame_${frameNumber}.jpg`;
+
+    // Convert data URL to blob
+    const res = await fetch(frame.imageDataUrl);
+    const blob = await res.blob();
+    
+    zip.file(imageName, blob);
+  });
+
+  await Promise.all(imagePromises);
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  return zipBlob;
+};
+
 const getImageDimensions = (dataUrl: string): Promise<{width: number; height: number}> => {
   return new Promise((resolve, reject) => {
     const img = new Image();

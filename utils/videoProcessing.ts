@@ -45,7 +45,7 @@ export const extractFramesFromVideo = async (
           originalWidth: video.videoWidth,
           originalHeight: video.videoHeight,
           boxes: [],
-          includeInTest: true, // Initialize as true
+          includeInTest: false, // Initialize as false
         });
         onProgress(Math.round(((i + 1) / numFramesToGrab) * 100));
       }
