@@ -1,14 +1,24 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import FileUpload from './components/FileUpload';
 import FrameNavigator from './components/FrameNavigator';
 import FrameDisplay from './components/FrameDisplay';
 import ControlsPanel from './components/ControlsPanel';
 import TestPlayer from './components/TestPlayer';
+import ShareModal from './components/ShareModal';
 import { FrameAssetData, InteractiveBoxData, BoxType, InputBox, Hotspot } from './types';
 import { extractFramesFromVideo } from './utils/videoProcessing';
-import { createTestPackage, loadTestPackage } from './utils/zipUtils';
-import { DEFAULT_BOX_SIZE_PERCENT, DEFAULT_BOX_POSITION_PERCENT } from './constants';
+import { createTestPackage, loadTestPackage, createTestPackageBlob } from './utils/zipUtils';
+import { DEFAULT_BOX_SIZE_PERCENT } from './constants';
 import { LoadingSpinnerIcon } from './components/icons';
+
+// Add type declarations for Google APIs loaded from scripts
+// FIX: Correctly augment the Window interface to inform TypeScript about gapi and google properties.
+declare global {
+  interface Window {
+    gapi: any;
+    google: any;
+  }
+}
 
 const App: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -22,6 +32,133 @@ const App: React.FC = () => {
 
   const [isTestModeActive, setIsTestModeActive] = useState(false);
   const [testPlayerFrames, setTestPlayerFrames] = useState<FrameAssetData[]>([]);
+
+  // State for Google Drive Publishing
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [googleClientsReady, setGoogleClientsReady] = useState(false);
+  const tokenClientRef = useRef<any>(null);
+
+  // Effect to initialize Google clients
+  useEffect(() => {
+    const checkAndInitClients = () => {
+      if (window.gapi && window.google) {
+        // gapi: For API calls (Drive)
+        window.gapi.load('client', async () => {
+          try {
+            await window.gapi.client.init({
+              apiKey: 'AIzaSyCjOpMgz2QcXniNBOOl7WM0Ur8nFTUpB7M',
+              discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+            });
+            // gis: For OAuth2
+            tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+              client_id: '6776752288-9jcd15h51os7fd8qoh8qi7djoqifn89a.apps.googleusercontent.com',
+              scope: 'https://www.googleapis.com/auth/drive.file',
+              callback: '', // We'll handle the token in a promise
+            });
+            setGoogleClientsReady(true);
+          } catch (err) {
+              console.error("Error initializing Google clients:", err);
+              setPublishError("Could not initialize Google services. Please check your API key and Client ID configuration.");
+              setGoogleClientsReady(false);
+          }
+        });
+      } else {
+        setTimeout(checkAndInitClients, 100); // Poll until scripts are loaded
+      }
+    };
+    checkAndInitClients();
+  }, []);
+
+  const getAuthToken = useCallback((): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!tokenClientRef.current) {
+        return reject(new Error('Google Auth client not ready. Refresh the page.'));
+      }
+      tokenClientRef.current.callback = (resp: any) => {
+        if (resp.error) {
+          return reject(new Error(`Google Auth error: ${resp.error}. User may have denied permission.`));
+        }
+        resolve(resp);
+      };
+      // A valid token is available for 1 hour after it's granted
+      const token = window.gapi.client.getToken();
+      if (token && token.expires_in > 0) {
+        return resolve(token);
+      }
+      // No token or expired, so request one. This will trigger the popup.
+      tokenClientRef.current.requestAccessToken({prompt: ''});
+    });
+  }, []);
+
+  const uploadToDrive = useCallback(async (blob: Blob): Promise<string> => {
+    const FOLDER_ID = '1Oa3bJ0BswoVmdc7EhQkzUt1zuNb2wEiP'; // Hardcoded folder ID provided by user
+    const FILENAME = `test_package_${Date.now()}.zip`;
+
+    // 1. Upload the file directly to the specified folder
+    const fileMetadata = { name: FILENAME, parents: [FOLDER_ID] };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(fileMetadata)], { type: 'application/json' }));
+    form.append('file', blob);
+
+    const uploadResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: new Headers({ 'Authorization': 'Bearer ' + window.gapi.client.getToken().access_token }),
+        body: form,
+    });
+    const fileResult = await uploadResponse.json();
+    
+    if (fileResult.error) {
+        console.error('Google Drive Upload Error:', fileResult.error);
+        throw new Error(`Upload Failed: ${fileResult.error.message}. You may not have permission to upload to the target folder.`);
+    }
+
+    const fileId = fileResult.id;
+
+    // 2. Make the file public (anyone with the link can view)
+    await window.gapi.client.drive.permissions.create({
+        fileId: fileId,
+        resource: { role: 'reader', type: 'anyone' },
+    });
+    
+    // 3. Get the public web link
+    const linkResponse = await window.gapi.client.drive.files.get({
+        fileId: fileId,
+        fields: 'webViewLink',
+    });
+    return linkResponse.result.webViewLink;
+  }, []);
+
+
+  const handlePublish = async () => {
+    const framesToPublish = frames.filter(f => f.includeInTest);
+    if (framesToPublish.length === 0) {
+        setError("Cannot publish: No frames are selected for inclusion.");
+        setTimeout(() => setError(null), 3000);
+        return;
+    }
+    
+    setShowShareModal(true);
+    setIsPublishing(true);
+    setShareLink(null);
+    setPublishError(null);
+
+    try {
+        await getAuthToken();
+        const blob = await createTestPackageBlob(framesToPublish);
+        const googleDriveLink = await uploadToDrive(blob);
+        const testPlayerUrl = `https://interactive-test-player.onrender.com/?testUrl=${encodeURIComponent(googleDriveLink)}`;
+        setShareLink(testPlayerUrl);
+    } catch (err: any) {
+        console.error("Publishing error:", err);
+        setPublishError(err.message || "An unknown error occurred during publishing.");
+    } finally {
+        setIsPublishing(false);
+    }
+  };
+
 
   const handleFileSelect = useCallback(async (file: File) => {
     setVideoFile(file);
@@ -96,26 +233,47 @@ const App: React.FC = () => {
   };
 
 
-  const handleAddBox = useCallback((type: BoxType) => {
+  const handleAddHotspot = useCallback((pos: {x: number, y: number}) => {
     if (frames.length === 0) return;
     const currentFrame = frames[currentFrameIndex];
-    if (!currentFrame || !currentFrame.includeInTest) return; // Prevent adding to excluded frames
+    if (!currentFrame || !currentFrame.includeInTest) return;
 
-    const newBoxBase = {
+    const { w, h } = DEFAULT_BOX_SIZE_PERCENT;
+    // Center the new hotspot on the click coordinates
+    const x = pos.x - w / 2;
+    const y = pos.y - h / 2;
+
+    const newBox: Hotspot = {
       id: crypto.randomUUID(),
-      x: DEFAULT_BOX_POSITION_PERCENT.x,
-      y: DEFAULT_BOX_POSITION_PERCENT.y,
-      w: DEFAULT_BOX_SIZE_PERCENT.w,
-      h: DEFAULT_BOX_SIZE_PERCENT.h,
-      label: type === BoxType.HOTSPOT ? 'New Hotspot' : 'New Input',
+      type: BoxType.HOTSPOT,
+      x: Math.max(0, Math.min(x, 100 - w)),
+      y: Math.max(0, Math.min(y, 100 - h)),
+      w,
+      h,
+      label: 'New Hotspot',
     };
 
-    let newBox: InteractiveBoxData;
-    if (type === BoxType.HOTSPOT) {
-      newBox = { ...newBoxBase, type: BoxType.HOTSPOT } as Hotspot;
-    } else {
-      newBox = { ...newBoxBase, type: BoxType.INPUT, expected: '' } as InputBox;
-    }
+    const updatedFrames = frames.map((frame, index) =>
+      index === currentFrameIndex
+        ? { ...frame, boxes: [...frame.boxes, newBox] }
+        : frame
+    );
+    setFrames(updatedFrames);
+    setSelectedBoxId(newBox.id);
+  }, [frames, currentFrameIndex]);
+
+  const handleAddInputField = useCallback((box: {x: number, y: number, w: number, h: number}) => {
+    if (frames.length === 0) return;
+    const currentFrame = frames[currentFrameIndex];
+    if (!currentFrame || !currentFrame.includeInTest) return;
+
+    const newBox: InputBox = {
+      id: crypto.randomUUID(),
+      type: BoxType.INPUT,
+      ...box,
+      label: 'New Input',
+      expected: '',
+    };
 
     const updatedFrames = frames.map((frame, index) =>
       index === currentFrameIndex
@@ -233,6 +391,13 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col items-center p-4 md:p-8" aria-live="polite">
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        isPublishing={isPublishing}
+        shareLink={shareLink}
+        error={publishError}
+      />
       <header className="mb-8 text-center">
         <h1 className="text-3xl md:text-4xl font-bold text-slate-700">CTRM Hotspot-&amp;-Input Test Builder</h1>
       </header>
@@ -286,13 +451,14 @@ const App: React.FC = () => {
               onSelectBox={setSelectedBoxId}
               onUpdateBox={handleUpdateBox}
               onImageClick={handleImageClick}
-              disabled={isLoading || !currentFrameData?.includeInTest}
+              onAddHotspot={handleAddHotspot}
+              onAddInputField={handleAddInputField}
+              disabled={isLoading}
             />
           </main>
           <aside className="w-full md:w-1/3 lg:w-1/4">
             <ControlsPanel
               selectedBox={selectedBoxData}
-              onAddBox={handleAddBox}
               onUpdateBox={handleUpdateBox}
               onDeleteBox={handleDeleteBox}
               disabled={isLoading || !currentFrameData?.includeInTest}
@@ -314,6 +480,15 @@ const App: React.FC = () => {
               >
                 {isExporting ? <LoadingSpinnerIcon className="w-5 h-5 mr-2 text-indigo-700"/> : null}
                 {isExporting ? 'Exporting...' : 'Export Test Package (.zip)'}
+              </button>
+              <button
+                onClick={handlePublish}
+                disabled={isLoading || isPublishing || !googleClientsReady || frames.filter(f => f.includeInTest).length === 0}
+                className="w-full px-6 py-3 flex items-center justify-center text-base font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
+                aria-label="Publish test package to Google Drive"
+              >
+                {isPublishing ? <LoadingSpinnerIcon className="w-5 h-5 mr-2 text-white"/> : null}
+                {isPublishing ? 'Publishing...' : 'Publish to Google Drive'}
               </button>
             </div>
           </aside>
