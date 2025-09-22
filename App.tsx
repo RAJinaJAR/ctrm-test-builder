@@ -488,7 +488,7 @@ const App: React.FC = () => {
                 aria-label="Publish test package to Google Drive"
               >
                 {isPublishing ? <LoadingSpinnerIcon className="w-5 h-5 mr-2 text-white"/> : null}
-                {isPublishing ? 'Publishing...' : 'Publish to Google Drive'}
+                {isPublishing ? 'Publishing...' : 'Publish Test'}
               </button>
             </div>
           </aside>
