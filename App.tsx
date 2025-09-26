@@ -243,6 +243,13 @@ const App: React.FC = () => {
     const x = pos.x - w / 2;
     const y = pos.y - h / 2;
 
+    const existingHotspots = currentFrame.boxes.filter(
+      (b): b is Hotspot => b.type === BoxType.HOTSPOT
+    );
+    const nextOrder = existingHotspots.length > 0
+      ? Math.max(...existingHotspots.map(h => h.order)) + 1
+      : 1;
+
     const newBox: Hotspot = {
       id: crypto.randomUUID(),
       type: BoxType.HOTSPOT,
@@ -250,7 +257,8 @@ const App: React.FC = () => {
       y: Math.max(0, Math.min(y, 100 - h)),
       w,
       h,
-      label: 'New Hotspot',
+      label: `Hotspot #${nextOrder}`,
+      order: nextOrder,
     };
 
     const updatedFrames = frames.map((frame, index) =>
@@ -310,9 +318,25 @@ const App: React.FC = () => {
     setFrames((prevFrames) =>
       prevFrames.map((frame, index) => {
         if (index !== currentFrameIndex) return frame;
+        
+        const boxToDelete = frame.boxes.find(b => b.id === id);
+        const remainingBoxes = frame.boxes.filter((box) => box.id !== id);
+
+        // If the deleted box was not a hotspot, no reordering is needed
+        if (!boxToDelete || boxToDelete.type !== BoxType.HOTSPOT) {
+          return { ...frame, boxes: remainingBoxes };
+        }
+
+        // Re-order the remaining hotspots
+        const otherBoxes = remainingBoxes.filter(b => b.type !== BoxType.HOTSPOT);
+        const hotspotsToReorder = remainingBoxes
+          .filter((b): b is Hotspot => b.type === BoxType.HOTSPOT)
+          .sort((a, b) => a.order - b.order)
+          .map((h, i) => ({ ...h, order: i + 1, label: `Hotspot #${i + 1}` }));
+        
         return {
           ...frame,
-          boxes: frame.boxes.filter((box) => box.id !== id),
+          boxes: [...otherBoxes, ...hotspotsToReorder],
         };
       })
     );
