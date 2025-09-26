@@ -1,5 +1,6 @@
+
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { FrameAssetData, BoxType, InputBox as InputBoxData } from '../types';
+import { FrameAssetData, BoxType, InputBox as InputBoxData, Hotspot } from '../types';
 import TestFramePlayer from './TestFramePlayer';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 
@@ -11,18 +12,20 @@ interface TestPlayerProps {
 interface UserAnswer {
   inputs: Record<string, string>; 
   hotspotsClicked: Record<string, boolean>; 
+  lastCorrectOrder: number;
 }
 
 const TestPlayer: React.FC<TestPlayerProps> = ({ frames, onExitTest }) => {
   const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<number, UserAnswer>>(
     () => frames.reduce((acc, _, index) => {
-      acc[index] = { inputs: {}, hotspotsClicked: {} };
+      acc[index] = { inputs: {}, hotspotsClicked: {}, lastCorrectOrder: 0 };
       return acc;
     }, {} as Record<number, UserAnswer>)
   );
   const [showResults, setShowResults] = useState(false);
   const [justClickedHotspotId, setJustClickedHotspotId] = useState<string | null>(null);
+  const [justClickedIncorrectHotspotId, setJustClickedIncorrectHotspotId] = useState<string | null>(null);
   const [frameMistakes, setFrameMistakes] = useState<Record<number, boolean>>(
     () => frames.reduce((acc, _, index) => {
       acc[index] = false;
@@ -61,24 +64,45 @@ const TestPlayer: React.FC<TestPlayerProps> = ({ frames, onExitTest }) => {
     }
   }, [currentFrameIdx, frames.length]);
 
-  const handleHotspotInteraction = useCallback((boxId: string) => {
-    if (showResults) return; // No interaction if showing results
-    setUserAnswers(prevAnswers => ({
-      ...prevAnswers,
-      [currentFrameIdx]: {
-        ...prevAnswers[currentFrameIdx],
-        hotspotsClicked: {
-          ...prevAnswers[currentFrameIdx].hotspotsClicked,
-          [boxId]: true,
-        },
-      },
-    }));
-    setJustClickedHotspotId(boxId); 
-    setTimeout(() => {
-        navigate('next');
-        setJustClickedHotspotId(null);
-    }, 150);
-  }, [currentFrameIdx, navigate, showResults]);
+  const handleHotspotInteraction = useCallback((clickedHotspot: Hotspot) => {
+    if (showResults) return;
+
+    const lastCorrect = currentUserAnswerForFrame.lastCorrectOrder;
+
+    if (clickedHotspot.order === lastCorrect + 1) {
+        // Correct Click
+        setUserAnswers(prev => ({
+            ...prev,
+            [currentFrameIdx]: {
+                ...prev[currentFrameIdx],
+                lastCorrectOrder: clickedHotspot.order,
+                hotspotsClicked: {
+                    ...prev[currentFrameIdx].hotspotsClicked,
+                    [clickedHotspot.id]: true,
+                },
+            },
+        }));
+
+        setJustClickedHotspotId(clickedHotspot.id);
+
+        const totalHotspotsOnFrame = currentFrameData.boxes.filter(b => b.type === BoxType.HOTSPOT).length;
+        if (clickedHotspot.order === totalHotspotsOnFrame) {
+            // Last correct hotspot on this frame, navigate after a delay
+            setTimeout(() => {
+                navigate('next');
+                setJustClickedHotspotId(null);
+            }, 300);
+        } else {
+            // Correct, but not the last one. Just reset the visual flash.
+            setTimeout(() => setJustClickedHotspotId(null), 300);
+        }
+    } else {
+        // Incorrect Click (out of order)
+        setFrameMistakes(prev => ({ ...prev, [currentFrameIdx]: true }));
+        setJustClickedIncorrectHotspotId(clickedHotspot.id);
+        setTimeout(() => setJustClickedIncorrectHotspotId(null), 700);
+    }
+  }, [currentFrameIdx, showResults, currentUserAnswerForFrame, currentFrameData, navigate]);
 
   const handleFrameClickMistake = useCallback(() => {
     if (showResults || !currentFrameData) return;
@@ -112,29 +136,36 @@ const TestPlayer: React.FC<TestPlayerProps> = ({ frames, onExitTest }) => {
     let mistakesCount = 0;
 
     frames.forEach((frame, frameIndex) => {
-      let hasHotspotsOnFrame = false;
-      frame.boxes.forEach(box => {
-        if (box.type === BoxType.INPUT) {
-          currentTotalPossible++;
-          const userAnswer = userAnswers[frameIndex]?.inputs[box.id] ?? '';
-          if (userAnswer.trim().toLowerCase() === (box as InputBoxData).expected.trim().toLowerCase()) {
-            currentScore++;
-          }
-        } else if (box.type === BoxType.HOTSPOT) {
-          hasHotspotsOnFrame = true;
-          currentTotalPossible++; 
-          // Only score if no mistake click occurred on this frame AND this hotspot was clicked
-          if (!frameMistakes[frameIndex] && userAnswers[frameIndex]?.hotspotsClicked[box.id]) {
-            currentScore++;
-          }
+        let hasHotspotsOnFrame = false;
+        let correctHotspotsClickedOnFrame = 0;
+
+        frame.boxes.forEach(box => {
+            if (box.type === BoxType.INPUT) {
+                currentTotalPossible++;
+                const userAnswer = userAnswers[frameIndex]?.inputs[box.id] ?? '';
+                if (userAnswer.trim().toLowerCase() === (box as InputBoxData).expected.trim().toLowerCase()) {
+                    currentScore++;
+                }
+            } else if (box.type === BoxType.HOTSPOT) {
+                hasHotspotsOnFrame = true;
+                currentTotalPossible++; 
+                if (userAnswers[frameIndex]?.hotspotsClicked[box.id]) {
+                    correctHotspotsClickedOnFrame++;
+                }
+            }
+        });
+        
+        if (hasHotspotsOnFrame) {
+            if (frameMistakes[frameIndex]) {
+                mistakesCount++;
+                // Score for hotspots is 0 if a mistake was made on this frame
+            } else {
+                currentScore += correctHotspotsClickedOnFrame;
+            }
         }
-      });
-      if (hasHotspotsOnFrame && frameMistakes[frameIndex]) {
-        mistakesCount++;
-      }
     });
     return { score: currentScore, totalPossible: currentTotalPossible, framesWithMistakesCount: mistakesCount };
-  }, [frames, userAnswers, frameMistakes]);
+  }, [frames, userAnswers, frameMistakes, showResults]);
 
 
   if (!currentFrameData) {
@@ -178,14 +209,16 @@ const TestPlayer: React.FC<TestPlayerProps> = ({ frames, onExitTest }) => {
           onInputBlur={handleInputBlur}
           userInputsForFrame={currentUserAnswerForFrame?.inputs || {}}
           userHotspotsClickedForFrame={currentUserAnswerForFrame?.hotspotsClicked || {}}
+          lastCorrectOrderForFrame={currentUserAnswerForFrame?.lastCorrectOrder || 0}
           showResults={showResults}
           justClickedHotspotId={justClickedHotspotId}
+          justClickedIncorrectHotspotId={justClickedIncorrectHotspotId}
         />
       </main>
 
       <footer className="w-full max-w-4xl mt-6 flex flex-col items-center space-y-4">
         {showResults && (
-            <div role="status" aria-live="assertive" className="p-4 bg-green-100 border border-green-300 rounded-md text-green-700 w-full text-center">
+            <div role="status" aria-live="assertive" className="p-4 bg-blue-100 border border-blue-300 rounded-md text-blue-800 w-full text-center">
                 <h3 className="text-xl font-bold">Test Complete!</h3>
                 <p className="text-lg">Your score: {score} / {totalPossible}</p>
                 {framesWithMistakesCount > 0 && (
