@@ -337,6 +337,32 @@ const App: React.FC = () => {
     }
   }, [currentFrameIndex, frames]);
 
+  const handleDuplicateFrame = useCallback(() => {
+    const frameToDuplicate = frames[currentFrameIndex];
+    if (!frameToDuplicate) return;
+
+    // Deep copy of the frame with new IDs
+    const newFrame: FrameAssetData = {
+      ...frameToDuplicate,
+      id: crypto.randomUUID(),
+      boxes: frameToDuplicate.boxes.map(box => ({
+        ...box,
+        id: crypto.randomUUID(),
+      })),
+    };
+
+    // Insert the new frame after the current one
+    const newFrames = [
+      ...frames.slice(0, currentFrameIndex + 1),
+      newFrame,
+      ...frames.slice(currentFrameIndex + 1),
+    ];
+
+    setFrames(newFrames);
+    // Navigate to the new frame
+    setCurrentFrameIndex(currentFrameIndex + 1);
+  }, [frames, currentFrameIndex]);
+
   const handleStartTest = () => {
     const framesToInclude = frames.filter(frame => frame.includeInTest);
     if (framesToInclude.length === 0) {
