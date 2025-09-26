@@ -1,6 +1,5 @@
-
 import { FrameAssetData } from '../types';
-import { NUM_FRAMES_TO_EXTRACT, FRAME_EXTRACTION_TARGET_FPS } from '../constants';
+import { FRAME_EXTRACTION_INTERVAL_SECONDS } from '../constants';
 
 export const extractFramesFromVideo = async (
   videoFile: File,
@@ -20,21 +19,33 @@ export const extractFramesFromVideo = async (
       canvas.height = video.videoHeight;
       const duration = video.duration;
       
-      let numFramesToGrab = NUM_FRAMES_TO_EXTRACT;
-      // If video is short, extract fewer frames based on FPS target
-      if (duration < NUM_FRAMES_TO_EXTRACT / FRAME_EXTRACTION_TARGET_FPS) {
-        numFramesToGrab = Math.max(1, Math.floor(duration * FRAME_EXTRACTION_TARGET_FPS));
+      const timestamps: number[] = [];
+      if (duration > 0) {
+        for (let time = 0; time < duration; time += FRAME_EXTRACTION_INTERVAL_SECONDS) {
+          timestamps.push(time);
+        }
+        // For videos shorter than the interval, still grab the first frame.
+        if (timestamps.length === 0) {
+          timestamps.push(0);
+        }
       }
-      
-      const interval = duration / numFramesToGrab;
+
+      const numFramesToGrab = timestamps.length;
 
       if (!ctx) {
         reject(new Error("Canvas context not available"));
         return;
       }
+      
+      if (numFramesToGrab === 0) {
+        onProgress(100);
+        URL.revokeObjectURL(video.src);
+        resolve(frames);
+        return;
+      }
 
       for (let i = 0; i < numFramesToGrab; i++) {
-        video.currentTime = i * interval;
+        video.currentTime = timestamps[i];
         await new Promise<void>(r => video.onseeked = () => r());
         
         ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
