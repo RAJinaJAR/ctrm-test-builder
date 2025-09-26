@@ -1,28 +1,33 @@
+
 import React, { useRef, useState, useEffect } from 'react';
-import { FrameAssetData, BoxType, InputBox as InputBoxData } from '../types';
+import { FrameAssetData, BoxType, InputBox as InputBoxData, Hotspot } from '../types';
 
 interface TestFramePlayerProps {
   frame: FrameAssetData;
   onInputChange: (boxId: string, value: string) => void;
-  onHotspotInteraction: (boxId: string) => void;
-  onFrameClickMistake: () => void; // New prop
+  onHotspotInteraction: (hotspot: Hotspot) => void;
+  onFrameClickMistake: () => void;
   onInputBlur?: () => void;
-  userInputsForFrame: Record<string, string>; 
-  userHotspotsClickedForFrame: Record<string, boolean>; 
-  showResults: boolean; 
-  justClickedHotspotId?: string | null; 
+  userInputsForFrame: Record<string, string>;
+  userHotspotsClickedForFrame: Record<string, boolean>;
+  lastCorrectOrderForFrame: number;
+  showResults: boolean;
+  justClickedHotspotId?: string | null;
+  justClickedIncorrectHotspotId?: string | null;
 }
 
 const TestFramePlayer: React.FC<TestFramePlayerProps> = ({
   frame,
   onInputChange,
   onHotspotInteraction,
-  onFrameClickMistake, // Destructure new prop
+  onFrameClickMistake,
   onInputBlur,
   userInputsForFrame,
   userHotspotsClickedForFrame,
+  lastCorrectOrderForFrame,
   showResults,
   justClickedHotspotId,
+  justClickedIncorrectHotspotId,
 }) => {
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const [showMistakeFlash, setShowMistakeFlash] = useState(false);
@@ -82,61 +87,80 @@ const TestFramePlayer: React.FC<TestFramePlayerProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          transition: 'outline 0.1s ease-in-out, background-color 0.1s ease-in-out',
+          transition: 'all 0.2s ease-in-out',
         };
         
         if (box.type === BoxType.HOTSPOT) {
+          const hotspot = box as Hotspot;
+          const wasClicked = userHotspotsClickedForFrame[hotspot.id];
+          const isDisabled = showResults || wasClicked;
+
           let hotspotClasses = '';
           let icon = null;
+          let orderBadge = (
+            <div className={`absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-5 h-5 text-xs font-bold rounded-full flex items-center justify-center shadow-md border border-white/50
+              ${wasClicked ? 'bg-green-600 text-white' : 'bg-gray-600 text-white'}`}>
+              {hotspot.order}
+            </div>
+          );
 
           if (showResults) {
-            hotspotClasses = 'cursor-default'; 
-            if (userHotspotsClickedForFrame[box.id]) { 
-              hotspotClasses += 'bg-green-500/40';
-              icon = <span className="text-white text-2xl font-bold select-none" aria-label="Correctly clicked">✓</span>;
-            } else { 
+            hotspotClasses = 'cursor-default';
+            if (wasClicked) {
+              hotspotClasses += ' bg-green-500/40';
+              icon = <span className="text-white text-3xl font-bold select-none" aria-label="Correctly clicked">✓</span>;
+            } else {
               hotspotClasses += ' bg-red-500/40';
-              icon = <span className="text-white text-2xl font-bold select-none" aria-label="Missed hotspot">✗</span>;
+              icon = <span className="text-white text-3xl font-bold select-none" aria-label="Missed hotspot">✗</span>;
+              orderBadge = (
+                <div className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-5 h-5 text-xs font-bold rounded-full flex items-center justify-center shadow-md border border-white/50 bg-red-600 text-white">
+                  {hotspot.order}
+                </div>
+              );
             }
-          } else {
-            // Active test mode: No background on hover, only focus outline. Click flash handled separately.
-            hotspotClasses = `cursor-pointer bg-transparent 
-                              focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-400`;
-            if (justClickedHotspotId === box.id) {
-              // Flash feedback for click before auto-advance
-              hotspotClasses = 'outline outline-4 outline-green-400 bg-green-500/50 cursor-pointer'; 
+          } else { // Active test mode
+            if (wasClicked) {
+                hotspotClasses = 'cursor-default bg-green-500/50 outline outline-2 outline-green-600';
+                icon = <span className="text-white text-2xl font-bold select-none" aria-label="Correctly clicked">✓</span>;
+            } else {
+                hotspotClasses = 'cursor-pointer';
             }
+          }
+
+          if (justClickedHotspotId === hotspot.id) {
+            hotspotClasses = 'cursor-default outline outline-4 outline-green-400 bg-green-500/50';
+            icon = <span className="text-white text-2xl font-bold select-none" aria-label="Correctly clicked">✓</span>;
+          }
+          
+          if (justClickedIncorrectHotspotId === hotspot.id) {
+            hotspotClasses += ' outline outline-4 outline-red-500';
           }
 
           return (
             <div
-              key={box.id}
+              key={hotspot.id}
               style={boxStyle}
               className={hotspotClasses}
               onClick={(e) => {
                 e.stopPropagation(); 
-                if (!showResults) { 
-                  onHotspotInteraction(box.id);
+                if (!isDisabled) { 
+                  onHotspotInteraction(hotspot);
                 }
               }}
               onKeyDown={(e) => { 
-                if (!showResults && (e.key === 'Enter' || e.key === ' ')) {
+                if (!isDisabled && (e.key === 'Enter' || e.key === ' ')) {
                   e.stopPropagation();
-                  onHotspotInteraction(box.id);
+                  onHotspotInteraction(hotspot);
                 }
               }}
-              title={box.label}
+              title={hotspot.label}
               role="button"
-              tabIndex={showResults ? -1 : 0} 
-              aria-label={`Hotspot: ${box.label}${showResults ? (userHotspotsClickedForFrame[box.id] ? '. You clicked this correctly.' : '. You missed this.') : ''}`}
+              tabIndex={isDisabled ? -1 : 0}
+              aria-label={`Hotspot: ${hotspot.label}`}
               data-interactive-type="hotspot" 
             >
               {icon}
-               {(showResults || !icon) && (
-                <span className={`absolute bottom-0 left-1/2 -translate-x-1/2 p-0.5 text-[10px] bg-black/50 text-white rounded-sm ${showResults ? '' : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity'}`}>
-                    {box.label}
-                </span>
-               )}
+              {(showResults || wasClicked) && orderBadge}
             </div>
           );
         }
