@@ -470,6 +470,7 @@ const App: React.FC = () => {
                 setCurrentFrameIndex(Math.min(frames.length - 1, currentFrameIndex + 1));
               }}
               disabled={isLoading}
+              onDuplicateFrame={handleDuplicateFrame}
             />
             <FrameDisplay
               frame={currentFrameData}
