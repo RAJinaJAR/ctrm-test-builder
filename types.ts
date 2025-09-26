@@ -15,6 +15,7 @@ export interface BoxCommon {
 
 export interface Hotspot extends BoxCommon {
   type: BoxType.HOTSPOT;
+  order: number; // The order in which it must be clicked
 }
 
 export interface InputBox extends BoxCommon {
@@ -40,6 +41,7 @@ export interface JsonHotspot {
   w: number; // pixel value
   h: number; // pixel value
   label: string;
+  order: number;
 }
 
 export interface JsonInput {
