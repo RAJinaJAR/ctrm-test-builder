@@ -1,3 +1,4 @@
+
 import JSZip from 'jszip';
 import saveAs from 'file-saver';
 import { FrameAssetData, JsonFrame, JsonInput, JsonHotspot, InteractiveBoxData, BoxType, Hotspot, InputBox } from '../types';
@@ -110,6 +111,7 @@ export const loadTestPackage = async (zipFile: File): Promise<FrameAssetData[]> 
         w: (hotspot.w / originalWidth) * 100,
         h: (hotspot.h / originalHeight) * 100,
         label: hotspot.label,
+        order: hotspot.order ?? 1, // Backwards compatibility
       } as Hotspot);
     });
 
