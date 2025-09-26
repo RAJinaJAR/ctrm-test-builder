@@ -47,6 +47,20 @@ const TestPlayer: React.FC<TestPlayerProps> = ({ frames, onExitTest }) => {
     }));
   }, [currentFrameIdx]);
 
+  const navigate = useCallback((direction: 'next' | 'prev') => {
+    if (direction === 'next') {
+      if (currentFrameIdx < frames.length - 1) {
+        setCurrentFrameIdx(currentFrameIdx + 1);
+      } else {
+        setShowResults(true);
+      }
+    } else if (direction === 'prev') {
+      if (currentFrameIdx > 0) {
+        setCurrentFrameIdx(currentFrameIdx - 1);
+      }
+    }
+  }, [currentFrameIdx, frames.length]);
+
   const handleHotspotInteraction = useCallback((boxId: string) => {
     if (showResults) return; // No interaction if showing results
     setUserAnswers(prevAnswers => ({
@@ -64,7 +78,7 @@ const TestPlayer: React.FC<TestPlayerProps> = ({ frames, onExitTest }) => {
         navigate('next');
         setJustClickedHotspotId(null);
     }, 150);
-  }, [currentFrameIdx, frames.length, showResults]); // Added frames.length to dependencies
+  }, [currentFrameIdx, navigate, showResults]);
 
   const handleFrameClickMistake = useCallback(() => {
     if (showResults || !currentFrameData) return;
@@ -74,21 +88,24 @@ const TestPlayer: React.FC<TestPlayerProps> = ({ frames, onExitTest }) => {
     }
   }, [currentFrameIdx, showResults, currentFrameData]);
 
+  const handleInputBlur = useCallback(() => {
+    if (showResults || !currentFrameData) return;
 
-  const navigate = (direction: 'next' | 'prev') => {
-    if (direction === 'next') {
-      if (currentFrameIdx < frames.length - 1) {
-        setCurrentFrameIdx(currentFrameIdx + 1);
-      } else {
-        setShowResults(true);
-      }
-    } else if (direction === 'prev') {
-      if (currentFrameIdx > 0) {
-        setCurrentFrameIdx(currentFrameIdx - 1);
-      }
+    // Check if the frame is input-only and has at least one input box
+    const isInputOnlyFrame = currentFrameData.boxes.length > 0 && currentFrameData.boxes.every(b => b.type === BoxType.INPUT);
+    if (!isInputOnlyFrame) return;
+
+    // Check if all inputs for the current frame are filled
+    const inputBoxes = currentFrameData.boxes.filter(b => b.type === BoxType.INPUT);
+    const currentAnswersForFrame = userAnswers[currentFrameIdx]?.inputs || {};
+    const allInputsFilled = inputBoxes.every(box => (currentAnswersForFrame[box.id] || '').trim() !== '');
+
+    if (allInputsFilled) {
+      setTimeout(() => navigate('next'), 100);
     }
-  };
-  
+  }, [currentFrameData, currentFrameIdx, userAnswers, showResults, navigate]);
+
+
   const { score, totalPossible, framesWithMistakesCount } = useMemo(() => {
     let currentScore = 0;
     let currentTotalPossible = 0;
@@ -158,6 +175,7 @@ const TestPlayer: React.FC<TestPlayerProps> = ({ frames, onExitTest }) => {
           onInputChange={handleInputChange}
           onHotspotInteraction={handleHotspotInteraction}
           onFrameClickMistake={handleFrameClickMistake} 
+          onInputBlur={handleInputBlur}
           userInputsForFrame={currentUserAnswerForFrame?.inputs || {}}
           userHotspotsClickedForFrame={currentUserAnswerForFrame?.hotspotsClicked || {}}
           showResults={showResults}
