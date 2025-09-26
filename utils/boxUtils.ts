@@ -1,5 +1,5 @@
 
-import { InteractiveBoxData, FrameAssetData, JsonFrame, JsonHotspot, JsonInput, BoxType } from '../types';
+import { InteractiveBoxData, FrameAssetData, JsonFrame, JsonHotspot, JsonInput, BoxType, Hotspot } from '../types';
 
 export const convertFrameDataToJsonFormat = (frames: FrameAssetData[]): JsonFrame[] => {
   return frames.map((frame, index) => {
@@ -16,7 +16,10 @@ export const convertFrameDataToJsonFormat = (frames: FrameAssetData[]): JsonFram
       };
 
       if (box.type === BoxType.HOTSPOT) {
-        jsonHotspots.push(commonPixelData);
+        jsonHotspots.push({
+          ...commonPixelData,
+          order: (box as Hotspot).order,
+        });
       } else if (box.type === BoxType.INPUT) {
         jsonInputs.push({
           ...commonPixelData,
@@ -35,4 +38,3 @@ export const convertFrameDataToJsonFormat = (frames: FrameAssetData[]): JsonFram
     };
   });
 };
-    
