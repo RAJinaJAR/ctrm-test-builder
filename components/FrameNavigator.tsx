@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ChevronLeftIcon, ChevronRightIcon } from './icons';
+import { ChevronLeftIcon, ChevronRightIcon, CopyIcon } from './icons';
 
 interface FrameNavigatorProps {
   currentFrameIndex: number;
@@ -9,6 +9,7 @@ interface FrameNavigatorProps {
   onToggleFrameInclusion: (included: boolean) => void;
   onPrev: () => void;
   onNext: () => void;
+  onDuplicateFrame: () => void;
   disabled?: boolean;
 }
 
@@ -19,6 +20,7 @@ const FrameNavigator: React.FC<FrameNavigatorProps> = ({
   onToggleFrameInclusion,
   onPrev,
   onNext,
+  onDuplicateFrame,
   disabled,
 }) => {
   if (totalFrames === 0) return null;
@@ -50,21 +52,32 @@ const FrameNavigator: React.FC<FrameNavigatorProps> = ({
           <ChevronRightIcon className="w-6 h-6 text-gray-700" />
         </button>
       </div>
-      <div className="flex items-center">
-        <input
-          type="checkbox"
-          id={`include-frame-${currentFrameIndex}`}
-          checked={isCurrentFrameIncluded}
-          onChange={handleCheckboxChange}
+      <div className="flex items-center space-x-4">
+        <button
+          onClick={onDuplicateFrame}
           disabled={disabled}
-          className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 disabled:opacity-70"
-        />
-        <label
-          htmlFor={`include-frame-${currentFrameIndex}`}
-          className={`ml-2 text-sm ${disabled ? 'text-gray-400' : 'text-gray-700'}`}
+          className="flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          aria-label="Duplicate Frame"
         >
-          Include in Test
-        </label>
+          <CopyIcon className="w-4 h-4 mr-2" />
+          Duplicate
+        </button>
+        <div className="flex items-center">
+            <input
+              type="checkbox"
+              id={`include-frame-${currentFrameIndex}`}
+              checked={isCurrentFrameIncluded}
+              onChange={handleCheckboxChange}
+              disabled={disabled}
+              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 disabled:opacity-70"
+            />
+            <label
+              htmlFor={`include-frame-${currentFrameIndex}`}
+              className={`ml-2 text-sm ${disabled ? 'text-gray-400' : 'text-gray-700'}`}
+            >
+              Include in Test
+            </label>
+        </div>
       </div>
     </div>
   );
