@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useCallback } from 'react';
-import { InteractiveBoxData, BoxType } from '../types';
+import { InteractiveBoxData, BoxType, Hotspot } from '../types';
 import { BOX_COLORS, SELECTED_BOX_BORDER_COLOR } from '../constants';
 
 interface InteractiveBoxProps {
@@ -149,6 +149,11 @@ const InteractiveBox: React.FC<InteractiveBoxProps> = ({ boxData, isSelected, on
       onMouseDown={handleMouseDownDrag}
       onClick={(e) => { e.stopPropagation(); onSelect(boxData.id); }} // Ensure selection on simple click too
     >
+      {boxData.type === BoxType.HOTSPOT && (
+        <div className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-yellow-400 text-black text-sm font-bold rounded-full flex items-center justify-center shadow-md border-2 border-white pointer-events-none">
+          {(boxData as Hotspot).order}
+        </div>
+      )}
       <span className="truncate pointer-events-none">{boxData.label}</span>
       {isSelected && !disabled && (
         <>
@@ -166,5 +171,3 @@ const InteractiveBox: React.FC<InteractiveBoxProps> = ({ boxData, isSelected, on
 };
 
 export default InteractiveBox;
-
-    
