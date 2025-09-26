@@ -406,6 +406,27 @@ const App: React.FC = () => {
     }
   }, [currentFrameIndex, frames, selectedBoxId, currentFrameData]);
 
+  // Effect for keyboard deletion
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (selectedBoxId && (e.key === 'Delete' || e.key === 'Backspace')) {
+        const target = e.target as HTMLElement;
+        // Prevent deleting when focused on an input, like the label editor
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+          return;
+        }
+        e.preventDefault();
+        handleDeleteBox(selectedBoxId);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedBoxId, handleDeleteBox]);
+
   if (isTestModeActive && testPlayerFrames.length > 0) {
     return (
       <TestPlayer
