@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import FileUpload from './components/FileUpload';
 import FrameNavigator from './components/FrameNavigator';
@@ -123,12 +124,8 @@ const App: React.FC = () => {
         resource: { role: 'reader', type: 'anyone' },
     });
     
-    // 3. Get the public web link
-    const linkResponse = await window.gapi.client.drive.files.get({
-        fileId: fileId,
-        fields: 'webViewLink',
-    });
-    return linkResponse.result.webViewLink;
+    // 3. Return the filename, as this is what the test player will use to identify the file.
+    return FILENAME;
   }, []);
 
 
@@ -148,8 +145,8 @@ const App: React.FC = () => {
     try {
         await getAuthToken();
         const blob = await createTestPackageBlob(framesToPublish);
-        const googleDriveLink = await uploadToDrive(blob);
-        const testPlayerUrl = `https://interactive-test-player.onrender.com/?testUrl=${encodeURIComponent(googleDriveLink)}`;
+        const filename = await uploadToDrive(blob);
+        const testPlayerUrl = `https://interactive-test-player.onrender.com/?testUrl=${filename}`;
         setShareLink(testPlayerUrl);
     } catch (err: any) {
         console.error("Publishing error:", err);
@@ -514,8 +511,8 @@ const App: React.FC = () => {
                 setSelectedBoxId(null);
                 setCurrentFrameIndex(Math.min(frames.length - 1, currentFrameIndex + 1));
               }}
-              disabled={isLoading}
               onDuplicateFrame={handleDuplicateFrame}
+              disabled={isLoading}
             />
             <FrameDisplay
               frame={currentFrameData}
@@ -560,7 +557,7 @@ const App: React.FC = () => {
                 aria-label="Publish test package to Google Drive"
               >
                 {isPublishing ? <LoadingSpinnerIcon className="w-5 h-5 mr-2 text-white"/> : null}
-                {isPublishing ? 'Publishing...' : 'Publish Test'}
+                {isPublishing ? 'Publishing...' : 'Publish to Google Drive'}
               </button>
             </div>
           </aside>
