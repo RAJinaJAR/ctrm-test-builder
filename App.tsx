@@ -155,7 +155,7 @@ const uploadToDrive = useCallback(async (blob: Blob): Promise<string> => {
         const fileLink = await uploadToDrive(blob); 
         
         // Use the full link in the query parameter
-        const testPlayerUrl = `https://interactive-test-player.onrender.com/?testUrl=${encodeURIComponent(fileLink)}`;
+        const testPlayerUrl = `https://ion-test-player.onrender.com/?testUrl=${encodeURIComponent(fileLink)}`;
         setShareLink(testPlayerUrl);
 
     } catch (err: any) {
