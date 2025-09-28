@@ -94,17 +94,21 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const uploadToDrive = useCallback(async (blob: Blob): Promise<string> => {
-    const FOLDER_ID = '1Oa3bJ0BswoVmdc7EhQkzUt1zuNb2wEiP'; // Hardcoded folder ID provided by user
+  // In your Test Builder App.tsx
+
+// In your Test Builder App.tsx
+
+const uploadToDrive = useCallback(async (blob: Blob): Promise<string> => {
+    const FOLDER_ID = '1Oa3bJ0BswoVmdc7EhQkzUt1zuNb2wEiP';
     const FILENAME = `test_package_${Date.now()}.zip`;
 
-    // 1. Upload the file directly to the specified folder
     const fileMetadata = { name: FILENAME, parents: [FOLDER_ID] };
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify(fileMetadata)], { type: 'application/json' }));
     form.append('file', blob);
 
-    const uploadResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    // 1. Change 'webViewLink' to 'webContentLink' here
+    const uploadResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webContentLink', {
         method: 'POST',
         headers: new Headers({ 'Authorization': 'Bearer ' + window.gapi.client.getToken().access_token }),
         body: form,
@@ -113,20 +117,21 @@ const App: React.FC = () => {
     
     if (fileResult.error) {
         console.error('Google Drive Upload Error:', fileResult.error);
-        throw new Error(`Upload Failed: ${fileResult.error.message}. You may not have permission to upload to the target folder.`);
+        throw new Error(`Upload Failed: ${fileResult.error.message}.`);
     }
 
     const fileId = fileResult.id;
+    // 2. Get the 'webContentLink' from the response
+    const webContentLink = fileResult.webContentLink; 
 
-    // 2. Make the file public (anyone with the link can view)
     await window.gapi.client.drive.permissions.create({
         fileId: fileId,
         resource: { role: 'reader', type: 'anyone' },
     });
     
-    // 3. Return the filename, as this is what the test player will use to identify the file.
-    return FILENAME;
-  }, []);
+    // 3. Return the direct download link
+    return webContentLink; 
+}, []);
 
 
   const handlePublish = async () => {
@@ -145,12 +150,16 @@ const App: React.FC = () => {
     try {
         await getAuthToken();
         const blob = await createTestPackageBlob(framesToPublish);
-        const filename = await uploadToDrive(blob);
-        const testPlayerUrl = `https://interactive-test-player.onrender.com/?testUrl=${filename}`;
+        
+        // 'uploadToDrive' now returns the full webViewLink
+        const fileLink = await uploadToDrive(blob); 
+        
+        // Use the full link in the query parameter
+        const testPlayerUrl = `https://interactive-test-player.onrender.com/?testUrl=${encodeURIComponent(fileLink)}`;
         setShareLink(testPlayerUrl);
+
     } catch (err: any) {
-        console.error("Publishing error:", err);
-        setPublishError(err.message || "An unknown error occurred during publishing.");
+        // ... (error handling is the same)
     } finally {
         setIsPublishing(false);
     }
